@@ -120,12 +120,14 @@ internal constructor(
      * @param creationState The current [RemoteComposeCreationState].
      * @return The [LongArray] representing this remote integer\'s expression.
      */
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     internal fun arrayForCreationState(stateScope: RemoteStateScope): LongArray {
         return stateScope.creationState.getOrPutLongArray(cacheKey) {
             arrayProvider(stateScope.creationState)
         }
     }
+
+    internal fun hasBeenWrittenToDoc(creationState: RemoteComposeCreationState) =
+        creationState.remoteVariableToId.contains(cacheKey)
 
     /**
      * Converts this [RemoteInt] to a [RemoteFloat]. If the [RemoteInt] is a literal, it\'s directly
@@ -460,7 +462,6 @@ internal constructor(
          * @param v The remote ID.
          * @return A [RemoteInt] referencing the ID.
          */
-        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
         internal fun createForId(v: Long): RemoteInt {
             return RemoteIntExpression(
                 constantValueOrNull = null,
@@ -685,7 +686,6 @@ internal constructor(
  * [extras]. Inlining is preferred as long as the resulting array length is less than
  * [MAX_SAFE_LONG_ARRAY].
  */
-@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 internal fun combineToLongArray(
     creationState: RemoteComposeCreationState,
     remoteInts: Array<RemoteInt>,
@@ -695,9 +695,17 @@ internal fun combineToLongArray(
     var totalSizeReference = extras.size + remoteInts.size
     var arrays =
         Array<LongArray>(remoteInts.size) { i ->
-            var array = remoteInts[i].arrayForCreationState(creationState)
-            totalSizeInline += array.size
-            array
+            val remoteInt = remoteInts[i]
+            // If remoteInt has already been written to the document then use a reference
+            // rather than inlining the expression. This results in smaller documents.
+            if (remoteInt.hasBeenWrittenToDoc(creationState)) {
+                totalSizeInline += 1
+                longArrayOf(remoteInt.getLongIdForCreationState(creationState))
+            } else {
+                var array = remoteInt.arrayForCreationState(creationState)
+                totalSizeInline += array.size
+                array
+            }
         }
 
     val combinedArray: LongArray
@@ -841,7 +849,6 @@ internal fun binaryOp(
  * @param directEval When the sources are const float, this lambda will be called to evaluate the
  *   result directly.
  */
-@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 internal fun comparisonOp(
     a: RemoteInt,
     b: RemoteInt,
@@ -947,9 +954,7 @@ public fun clamp(min: RemoteInt, max: RemoteInt, value: RemoteInt): RemoteInt {
 public class MutableRemoteInt
 internal constructor(
     constantValueOrNull: Int? = null,
-    @get:RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     internal override val cacheKey: RemoteStateCacheKey,
-    @get:RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     internal val idProvider: (creationState: RemoteComposeCreationState) -> Long,
 ) :
     RemoteInt(

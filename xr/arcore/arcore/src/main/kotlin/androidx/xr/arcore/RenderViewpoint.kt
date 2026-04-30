@@ -46,38 +46,50 @@ internal constructor(
          * Returns the RenderViewpoint associated with the left display.
          *
          * @param session the currently active [Session]
-         * @note Supported only on devices that use stereo displays for rendering.
+         * @throws IllegalStateException if the device does not support
+         *   [androidx.xr.runtime.RenderingMode.STEREO]
          */
         @JvmStatic
-        public fun left(session: Session): RenderViewpoint? {
+        public fun left(session: Session): RenderViewpoint {
             val perceptionStateExtender = getPerceptionStateExtender(session)
-            return perceptionStateExtender.xrResourcesManager.leftRenderViewpoint
+            check(perceptionStateExtender.xrResourcesManager.leftRenderViewpoint != null) {
+                "Left render viewpoint is not available."
+            }
+            return perceptionStateExtender.xrResourcesManager.leftRenderViewpoint!!
         }
 
         /**
          * Returns the RenderViewpoint associated with the right display.
          *
          * @param session the currently active [Session]
-         * @note Supported only on devices that use stereo displays for rendering.
+         * @throws IllegalStateException if the device does not support
+         *   [androidx.xr.runtime.RenderingMode.STEREO]
          */
         @JvmStatic
-        public fun right(session: Session): RenderViewpoint? {
+        public fun right(session: Session): RenderViewpoint {
             val perceptionStateExtender = getPerceptionStateExtender(session)
-            return perceptionStateExtender.xrResourcesManager.rightRenderViewpoint
+            check(perceptionStateExtender.xrResourcesManager.rightRenderViewpoint != null) {
+                "Right render viewpoint is not available."
+            }
+            return perceptionStateExtender.xrResourcesManager.rightRenderViewpoint!!
         }
 
         /**
          * Returns the RenderViewpoint associated with the single device display.
          *
          * @param session the currently active [Session]
-         * @note When the device uses a single display, this will return the render viewpoint for
-         *   that display. When the device uses stereo displays, this will return the render
-         *   viewpoint for the center of the two displays.
+         * @note When the device supports [androidx.xr.runtime.RenderingMode.MONO], this will return
+         *   the render viewpoint for that display. When the device uses
+         *   [androidx.xr.runtime.RenderingMode.STEREO], this will return the render viewpoint for
+         *   the center of the two displays.
          */
         @JvmStatic
-        public fun mono(session: Session): RenderViewpoint? {
+        public fun mono(session: Session): RenderViewpoint {
             val perceptionStateExtender = getPerceptionStateExtender(session)
-            return perceptionStateExtender.xrResourcesManager.monoRenderViewpoint
+            check(perceptionStateExtender.xrResourcesManager.monoRenderViewpoint != null) {
+                "Mono render viewpoint is not available."
+            }
+            return perceptionStateExtender.xrResourcesManager.monoRenderViewpoint!!
         }
 
         // TODO(b/421240554): Combine getPerceptionStateExtender in different classes.
@@ -97,11 +109,11 @@ internal constructor(
      * This value is the underlying [ArDevice]'s pose in the global coordinate system of the
      * [Session], plus the [localPose] offset. Its update behavior is determined by the current
      * [androidx.xr.runtime.DeviceTrackingMode]:
-     * - **SPATIAL_LAST_KNOWN:** The device pose is updated each frame with the latest valid
-     *   tracking data, reflecting physical movement.
+     * - **SPATIAL:** The device pose is updated each frame with the latest valid tracking data,
+     *   reflecting physical movement.
      * - **DISABLED:** The device pose is not updated. It remains at the origin (an identity pose)
-     *   unless this mode is switched from SPATIAL_LAST_KNOWN to DISABLED mid-session, which freezes
-     *   the pose at its last known state.
+     *   unless this mode is switched from SPATIAL to DISABLED mid-session, which freezes the pose
+     *   at its last known state.
      *
      * @property localPose a local offset from the device's central tracking point
      * @property fieldOfView the camera's [FieldOfView] in radians

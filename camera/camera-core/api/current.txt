@@ -193,9 +193,12 @@ package androidx.camera.core {
 
   public class CompositionSettings {
     method public float getAlpha();
+    method @ColorInt public int getBorderColor();
+    method @FloatRange(from=0, to=1) public float getBorderWidthRatio();
     method public androidx.core.util.Pair<java.lang.Float!,java.lang.Float!> getOffset();
+    method @FloatRange(from=0, to=1) public float getRoundedCornerRatio();
     method public androidx.core.util.Pair<java.lang.Float!,java.lang.Float!> getScale();
-    method public int getZOrder();
+    method @IntRange(from=0) public int getZOrder();
     field public static final androidx.camera.core.CompositionSettings DEFAULT;
   }
 
@@ -203,9 +206,12 @@ package androidx.camera.core {
     ctor public CompositionSettings.Builder();
     method public androidx.camera.core.CompositionSettings build();
     method public androidx.camera.core.CompositionSettings.Builder setAlpha(@FloatRange(from=0, to=1) float);
+    method public androidx.camera.core.CompositionSettings.Builder setBorderColor(@ColorInt int);
+    method public androidx.camera.core.CompositionSettings.Builder setBorderWidthRatio(@FloatRange(from=0, to=1) float);
     method public androidx.camera.core.CompositionSettings.Builder setOffset(@FloatRange(from=0xffffffff, to=1) float, @FloatRange(from=0xffffffff, to=1) float);
+    method public androidx.camera.core.CompositionSettings.Builder setRoundedCornerRatio(@FloatRange(from=0, to=1) float);
     method public androidx.camera.core.CompositionSettings.Builder setScale(float, float);
-    method public androidx.camera.core.CompositionSettings.Builder setZOrder(int);
+    method public androidx.camera.core.CompositionSettings.Builder setZOrder(@IntRange(from=0) int);
   }
 
   public class ConcurrentCamera {
@@ -323,6 +329,7 @@ package androidx.camera.core {
     method public void clearAnalyzer();
     method @SuppressCompatibility @androidx.camera.core.ExperimentalUseCaseApi public java.util.concurrent.Executor? getBackgroundExecutor();
     method public int getBackpressureStrategy();
+    method public static androidx.camera.core.ImageAnalysisCapabilities getImageAnalysisCapabilities(androidx.camera.core.CameraInfo);
     method public int getImageQueueDepth();
     method public int getOutputImageFormat();
     method public androidx.camera.core.ResolutionInfo? getResolutionInfo();
@@ -335,6 +342,7 @@ package androidx.camera.core {
     field public static final int COORDINATE_SYSTEM_SENSOR = 2; // 0x2
     field public static final int COORDINATE_SYSTEM_VIEW_REFERENCED = 1; // 0x1
     field public static final int OUTPUT_IMAGE_FORMAT_NV21 = 3; // 0x3
+    field public static final int OUTPUT_IMAGE_FORMAT_PRIVATE = 4; // 0x4
     field public static final int OUTPUT_IMAGE_FORMAT_RGBA_8888 = 2; // 0x2
     field public static final int OUTPUT_IMAGE_FORMAT_YUV_420_888 = 1; // 0x1
     field public static final int STRATEGY_BLOCK_PRODUCER = 1; // 0x1
@@ -361,6 +369,10 @@ package androidx.camera.core {
     method public androidx.camera.core.ImageAnalysis.Builder setTargetName(String);
     method @Deprecated public androidx.camera.core.ImageAnalysis.Builder setTargetResolution(android.util.Size);
     method public androidx.camera.core.ImageAnalysis.Builder setTargetRotation(int);
+  }
+
+  public interface ImageAnalysisCapabilities {
+    method public boolean isOutputFormatSupported(int);
   }
 
   public final class ImageCapture extends androidx.camera.core.UseCase {
@@ -523,6 +535,7 @@ package androidx.camera.core {
     method public void close();
     method public android.graphics.Rect getCropRect();
     method public int getFormat();
+    method @RequiresApi(android.os.Build.VERSION_CODES.P) public default android.hardware.HardwareBuffer? getHardwareBuffer();
     method public int getHeight();
     method @SuppressCompatibility @androidx.camera.core.ExperimentalGetImage public android.media.Image? getImage();
     method public androidx.camera.core.ImageInfo getImageInfo();

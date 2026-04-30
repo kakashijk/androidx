@@ -20,10 +20,13 @@ import androidx.annotation.VisibleForTesting
 import androidx.appfunctions.compiler.AppFunctionCompiler
 import androidx.appfunctions.compiler.core.AnnotatedAppFunctionEntryPoint
 import androidx.appfunctions.compiler.core.AnnotatedAppFunctionSerializableProxy.ResolvedAnnotatedSerializableProxies
+import androidx.appfunctions.compiler.core.AppFunctionInventoryCodeBuilder
 import androidx.appfunctions.compiler.core.AppFunctionSymbolResolver
 import androidx.appfunctions.compiler.core.AppFunctionXmlGenerator
 import androidx.appfunctions.compiler.core.IntrospectionHelper.APP_FUNCTION_FUNCTION_NOT_FOUND_EXCEPTION_CLASS
 import androidx.appfunctions.compiler.core.IntrospectionHelper.AppFunctionExecutionDispatcherClass
+import androidx.appfunctions.compiler.core.IntrospectionHelper.AppFunctionInventoryInterface
+import androidx.appfunctions.compiler.core.IntrospectionHelper.AppFunctionInventoryProviderInterface
 import androidx.appfunctions.compiler.core.IntrospectionHelper.AppFunctionServiceClass
 import androidx.appfunctions.compiler.core.IntrospectionHelper.ExecuteAppFunctionRequestClass
 import androidx.appfunctions.compiler.core.IntrospectionHelper.ExecuteAppFunctionResponseClass
@@ -91,7 +94,6 @@ class AppFunctionEntryPointProcessor(
         val entryPoints = appFunctionSymbolResolver.resolveAnnotatedAppFunctionEntryPoints()
         for (entryPoint in entryPoints) {
             try {
-                entryPoint.validate()
                 generateAppFunctionService(entryPoint)
                 generateXml(entryPoint, resolvedAnnotatedSerializableProxies, descriptionMap)
             } catch (e: ProcessingException) {
@@ -108,7 +110,7 @@ class AppFunctionEntryPointProcessor(
     ) {
         val generator = AppFunctionXmlGenerator(codeGenerator, logger)
         generator.generateXml(
-            appFunctionsByClass = listOf(entryPoint.annotatedAppFunctions),
+            entryPoint = entryPoint,
             resolvedAnnotatedSerializableProxies = resolvedAnnotatedSerializableProxies,
             appFunctionSerializablesDescriptionMap = descriptionMap,
             packageName = XML_PACKAGE_NAME,
@@ -128,6 +130,7 @@ class AppFunctionEntryPointProcessor(
                 .superclass(originalClassName)
                 .addAnnotation(AppFunctionCompiler.GENERATED_ANNOTATION)
                 .addFunction(buildExecuteFunction(entryPoint))
+                .addFunction(buildResolveInventory(entryPoint))
 
         val fileSpec =
             FileSpec.builder(packageName, serviceName).addType(serviceClassBuilder.build()).build()
@@ -157,16 +160,41 @@ class AppFunctionEntryPointProcessor(
             .build()
     }
 
+    private fun buildResolveInventory(entryPoint: AnnotatedAppFunctionEntryPoint): FunSpec {
+        val generatedInventoryTypeName =
+            ClassName(
+                entryPoint.serviceDeclaration.packageName.asString(),
+                AppFunctionInventoryCodeBuilder.getAppFunctionInventoryClassName(
+                    entryPoint.serviceDeclaration.simpleName.asString()
+                ),
+            )
+        return FunSpec.builder(
+                AppFunctionInventoryProviderInterface.ResolveInventoryMethod.METHOD_NAME
+            )
+            .addModifiers(KModifier.OVERRIDE)
+            .returns(AppFunctionInventoryInterface.CLASS_NAME)
+            .addCode(buildCodeBlock { addStatement("return %T()", generatedInventoryTypeName) })
+            .build()
+    }
+
     private fun buildExecuteFunctionBody(entryPoint: AnnotatedAppFunctionEntryPoint): CodeBlock {
         return buildCodeBlock {
             beginControlFlow(
-                "return %T.%L(request) { parameters ->",
+                """
+                return %T.%L(
+                  %N(),
+                  request
+                ) { parameters ->
+                """
+                    .trimIndent(),
                 AppFunctionExecutionDispatcherClass.CLASS_NAME,
                 AppFunctionExecutionDispatcherClass.ExecuteAppFunctionMethod.METHOD_NAME,
+                AppFunctionInventoryProviderInterface.ResolveInventoryMethod.METHOD_NAME,
             )
             beginControlFlow("when (request.functionIdentifier)")
-            for (function in entryPoint.annotatedAppFunctions.appFunctionDeclarations) {
-                val identifier = entryPoint.annotatedAppFunctions.getAppFunctionIdentifier(function)
+            for (appFunction in entryPoint.appFunctions) {
+                val function = appFunction.appFunctionDeclaration
+                val identifier = appFunction.getAppFunctionIdentifier(entryPoint.serviceDeclaration)
                 beginControlFlow("%S ->", identifier)
                 add("this.%N(\n", function.simpleName.asString())
                 indent()

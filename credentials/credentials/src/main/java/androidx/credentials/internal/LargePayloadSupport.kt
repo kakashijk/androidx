@@ -33,7 +33,6 @@ object LargePayloadSupport {
     const val EXTRA_LARGE_PAYLOAD = "androidx.credentials.provider.extra.LARGE_PAYLOAD"
 
     /** Key for the size of the large payload stored in a [Bundle]. */
-    @RestrictTo(RestrictTo.Scope.LIBRARY)
     private const val EXTRA_LARGE_PAYLOAD_SIZE =
         "androidx.credentials.provider.extra.LARGE_PAYLOAD_SIZE"
 
@@ -56,6 +55,7 @@ object LargePayloadSupport {
             tempFile.delete()
             fileOutputStream.use { it.write(payload) }
             val result = Bundle()
+            // `Bundle#putParcelable` won't increment the reference count.
             result.putParcelable(EXTRA_LARGE_PAYLOAD, pfd)
             result.putInt(EXTRA_LARGE_PAYLOAD_SIZE, payload.size)
             return result
@@ -83,12 +83,11 @@ object LargePayloadSupport {
         }
     }
 
-    @RestrictTo(RestrictTo.Scope.LIBRARY)
     internal inline fun <R> Parcel.use(block: (Parcel) -> R?) =
         try {
             block(this)
         } catch (e: Exception) {
-            Log.e(TAG, "Catch an exception during payload transferring", e)
+            Log.e(TAG, "An exception occurred during payload transfer", e)
             null
         } finally {
             recycle()

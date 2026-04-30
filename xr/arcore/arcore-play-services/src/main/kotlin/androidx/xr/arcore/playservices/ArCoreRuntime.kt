@@ -38,6 +38,7 @@ import androidx.xr.runtime.internal.LibraryNotLinkedException
 import androidx.xr.runtime.internal.UnsupportedDeviceException
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.ArCoreApk.Availability
+import com.google.ar.core.AugmentedImageDatabase
 import com.google.ar.core.Config as ArConfig
 import com.google.ar.core.Config as ArCoreConfig
 import com.google.ar.core.Config.AugmentedFaceMode
@@ -57,7 +58,6 @@ import kotlinx.coroutines.delay
  * Implementation of the [androidx.xr.arcore.runtime.PerceptionRuntime] interface using ARCore.
  *
  * @property context The [Context] instance
- * @property lifecycleManager that manages the lifecycle of the ARCore session
  * @property perceptionManager that manages the perception capabilities of a runtime using ARCore
  * @property timeSource the [ArCoreTimeSource] instance
  * @property config the current [Config] of the session
@@ -66,7 +66,6 @@ import kotlinx.coroutines.delay
 public class ArCoreRuntime
 internal constructor(
     private val context: Context,
-    override val lifecycleManager: ArCoreManager,
     override val perceptionManager: ArCorePerceptionManager,
     internal val timeSource: ArCoreTimeSource,
     private val arCoreApkInstance: ArCoreApk = ArCoreApk.getInstance(),
@@ -83,10 +82,7 @@ internal constructor(
 
     // TODO(b/392660855): Disable all features by default once this API is fully implemented.
     public override var config: Config = Config()
-        private set(value) {
-            this.lifecycleManager.configure(value)
-            field = value
-        }
+        private set
 
     override fun initialize() {
         checkARCoreSupportedAndUpToDate(context)
@@ -150,6 +146,20 @@ internal constructor(
             } else {
                 PlaneFindingMode.DISABLED
             }
+
+        config.augmentedImageDatabase?.let {
+            if (it.entries.isEmpty()) {
+                throw UnsupportedOperationException(
+                    "Failed to configure session, the image database has exceeded the maximum number of entries."
+                )
+            }
+
+            val augmentedImageDatabase = AugmentedImageDatabase(_session)
+            it.entries.forEach { entry ->
+                augmentedImageDatabase.addImage("", entry.bitmap, entry.widthInMeters)
+            }
+            arConfig.augmentedImageDatabase = augmentedImageDatabase
+        }
 
         if (config.handTracking != HandTrackingMode.DISABLED) {
             throw UnsupportedOperationException()
@@ -277,7 +287,7 @@ internal constructor(
                 CameraFacingDirection.WORLD,
                 CameraFacingDirection.USER,
                 DeviceTrackingMode.DISABLED,
-                DeviceTrackingMode.SPATIAL_LAST_KNOWN,
+                DeviceTrackingMode.SPATIAL,
                 FaceTrackingMode.DISABLED,
                 FaceTrackingMode.MESHES,
                 PlaneTrackingMode.DISABLED,

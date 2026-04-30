@@ -99,14 +99,7 @@ class ArCoreRuntimeTest {
         activityRule.scenario.onActivity {
             val perceptionManager = ArCorePerceptionManager(timeSource)
             mockArCoreApk = mock<ArCoreApk>()
-            underTest =
-                ArCoreRuntime(
-                    context = it,
-                    ArCoreManager(ArCoreTimeSource()),
-                    perceptionManager,
-                    timeSource,
-                    mockArCoreApk,
-                )
+            underTest = ArCoreRuntime(context = it, perceptionManager, timeSource, mockArCoreApk)
         }
 
         mockSession = mock<Session>()
@@ -225,6 +218,19 @@ class ArCoreRuntimeTest {
         assert(argumentCaptor.firstValue == PlaneFindingMode.HORIZONTAL_AND_VERTICAL)
         assertThat(underTest.config.planeTracking)
             .isEqualTo(PlaneTrackingMode.HORIZONTAL_AND_VERTICAL)
+    }
+
+    @Test
+    fun configure_imageTracking_setsAugmentedImageDatabase_toValue_Empty() {
+        val mockArConfig = mock<ArConfig>()
+        underTest._session = mockSession
+        whenever(mockSession.config).thenReturn(mockArConfig)
+
+        val config = Config(augmentedImageDatabase = null)
+        underTest.configure(config)
+
+        assertThat(mockArConfig.augmentedImageDatabase).isEqualTo(null)
+        assertThat(underTest.config.augmentedImageDatabase?.entries).isNull()
     }
 
     @Test
@@ -555,14 +561,7 @@ class ArCoreRuntimeTest {
             val perceptionManager = ArCorePerceptionManager(timeSource)
             mockArCoreApk = mock<ArCoreApk>()
             mockSession = mock<Session>()
-            underTest =
-                ArCoreRuntime(
-                    it,
-                    ArCoreManager(timeSource),
-                    perceptionManager,
-                    timeSource,
-                    mockArCoreApk,
-                )
+            underTest = ArCoreRuntime(it, perceptionManager, timeSource, mockArCoreApk)
 
             testBody()
         }

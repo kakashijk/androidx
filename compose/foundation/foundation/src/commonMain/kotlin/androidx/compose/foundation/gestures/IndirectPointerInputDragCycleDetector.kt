@@ -22,6 +22,7 @@ import androidx.collection.mutableLongListOf
 import androidx.collection.mutableObjectListOf
 import androidx.compose.foundation.ComposeFoundationFlags
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.GestureState
 import androidx.compose.foundation.gestures.DragEvent.DragCancelled
 import androidx.compose.foundation.gestures.DragEvent.DragDelta
 import androidx.compose.foundation.gestures.DragEvent.DragStarted
@@ -46,7 +47,27 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastFirstOrNull
 import kotlin.math.absoluteValue
 
-internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) {
+internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) :
+    DraggableGestureConnection {
+
+    override val orientation: Orientation?
+        get() = node.orientation
+
+    override var gestureState: GestureState = GestureState.Idle
+        private set
+        get() {
+            return when (val state = currentDragState) {
+                is DragDetectionState.AwaitDown ->
+                    if (state.hasSeenInitialEvent) GestureState.Waiting else GestureState.Idle
+                is DragDetectionState.AwaitTouchSlop -> GestureState.Waiting
+                is DragDetectionState.AwaitGesturePickup -> GestureState.Waiting
+                is DragDetectionState.Dragging -> GestureState.Recognized
+                else -> {
+                    GestureState.Idle
+                }
+            }
+        }
+
     /** Store non-initialized states for re-use */
     private var _awaitDownState: DragDetectionState.AwaitDown? = null
     private val awaitDownState: DragDetectionState.AwaitDown
@@ -69,6 +90,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
                 ?: DragDetectionState.AwaitGesturePickup().also { _awaitGesturePickupState = it }
 
     private var currentDragState: DragDetectionState? = null
+
     private var velocityTracker: VelocityTracker? = null
     private var previousPositionOnScreen = Offset.Unspecified
     private var touchSlopDetector: TouchSlopDetector? = null
@@ -131,9 +153,9 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
                 this.initialDown = initialDown
                 this.pointerId = pointerId
                 if (touchSlopDetector == null) {
-                    touchSlopDetector = TouchSlopDetector(node.orientationLock)
+                    touchSlopDetector = TouchSlopDetector(node.orientation)
                 } else {
-                    touchSlopDetector?.orientation = node.orientationLock
+                    touchSlopDetector?.orientation = node.orientation
                     touchSlopDetector?.reset(initialTouchSlopPositionChange)
                 }
                 this.verifyConsumptionInFinalPass = verifyConsumptionInFinalPass
@@ -149,6 +171,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
             awaitDownState.apply {
                 awaitTouchSlop = DragDetectionState.AwaitDown.AwaitTouchSlop.NotInitialized
                 consumedOnInitial = false
+                hasSeenInitialEvent = false
             }
     }
 
@@ -199,6 +222,10 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
                 // behavior where dispatching only happened during the main pass
                 state.consumedOnInitial = true
             }
+
+            // Draggable should start reporting that is waiting for touch slop as soon as it gets
+            // the first down event.
+            state.hasSeenInitialEvent = true
         }
 
         if (pass == PointerEventPass.Main) {
@@ -283,7 +310,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
                         requireTouchSlopDetector()
                             .getPostSlopOffset(
                                 dragEvent.positionChangeIgnoreConsumed(
-                                    node.orientationLock,
+                                    node.orientation,
                                     indirectPointerInputEvent.primaryDirectionalMotionAxis,
                                 ),
                                 touchSlop,
@@ -371,11 +398,11 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
                 indirectPointerInputEvent.changes
                     .first()
                     .primaryAxisPosition(
-                        node.orientationLock,
+                        node.orientation,
                         indirectPointerInputEvent.primaryDirectionalMotionAxis,
                     ) -
                     state.initialDown!!.primaryAxisPosition(
-                        node.orientationLock,
+                        node.orientation,
                         indirectPointerInputEvent.primaryDirectionalMotionAxis,
                     )
 
@@ -424,7 +451,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
             } else {
                 val positionChange =
                     dragEvent.positionChangeIgnoreConsumed(
-                        node.orientationLock,
+                        node.orientation,
                         indirectPointerInputEvent.primaryDirectionalMotionAxis,
                     )
 
@@ -436,7 +463,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
                 if (motionChange != 0.0f) {
                     val positionChange =
                         dragEvent.positionChange(
-                            node.orientationLock,
+                            node.orientation,
                             indirectPointerInputEvent.primaryDirectionalMotionAxis,
                         )
                     sendDragEvent(
@@ -465,7 +492,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
             requireVelocityTracker()
                 .addIndirectPointerInputChange(
                     down,
-                    node.orientationLock,
+                    node.orientation,
                     primaryDirectionalMotionAxis,
                     touchSmooth,
                     nodeOffset,
@@ -474,16 +501,14 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
             requireVelocityTracker()
                 .addIndirectPointerInputChange(
                     down,
-                    node.orientationLock,
+                    node.orientation,
                     primaryDirectionalMotionAxis,
                     touchSmooth,
                 )
         }
         val dragStartedOffset =
-            slopTriggerChange.primaryAxisPosition(
-                node.orientationLock,
-                primaryDirectionalMotionAxis,
-            ) - overSlopOffset
+            slopTriggerChange.primaryAxisPosition(node.orientation, primaryDirectionalMotionAxis) -
+                overSlopOffset
         // the drag start event offset is the down event + touch slop value
         // or in this case the event that triggered the touch slop minus
         // the post slop offset
@@ -515,12 +540,12 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
             previousPositionOnScreen = currentPositionOnScreen
         }
 
-        if (dragAmount.toFloat(node.orientationLock!!).absoluteValue > PixelSensibility) {
+        if (dragAmount.toFloat(node.orientation!!).absoluteValue > PixelSensibility) {
             if (!ComposeFoundationFlags.isDragNodeOffsetDoubleCountingFixEnabled) {
                 requireVelocityTracker()
                     .addIndirectPointerInputChange(
                         event = change,
-                        node.orientationLock,
+                        node.orientation,
                         primaryDirectionalMotionAxis,
                         touchSmooth,
                         nodeOffset = nodeOffset,
@@ -529,7 +554,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
                 requireVelocityTracker()
                     .addIndirectPointerInputChange(
                         event = change,
-                        node.orientationLock,
+                        node.orientation,
                         primaryDirectionalMotionAxis,
                         touchSmooth,
                     )
@@ -547,7 +572,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
             requireVelocityTracker()
                 .addIndirectPointerInputChange(
                     change,
-                    node.orientationLock,
+                    node.orientation,
                     primaryDirectionalMotionAxis,
                     touchSmooth,
                     nodeOffset,
@@ -556,7 +581,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
             requireVelocityTracker()
                 .addIndirectPointerInputChange(
                     change,
-                    node.orientationLock,
+                    node.orientation,
                     primaryDirectionalMotionAxis,
                     touchSmooth,
                 )
@@ -583,6 +608,7 @@ internal class IndirectPointerInputDragCycleDetector(val node: DragGestureNode) 
         class AwaitDown(
             var awaitTouchSlop: AwaitTouchSlop = AwaitTouchSlop.NotInitialized,
             var consumedOnInitial: Boolean = false,
+            var hasSeenInitialEvent: Boolean = false,
         ) : DragDetectionState() {
 
             enum class AwaitTouchSlop {

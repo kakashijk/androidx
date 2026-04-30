@@ -219,6 +219,7 @@ class AnchorsPlanesHitTestActivity :
         }
     }
 
+    @Suppress("RestrictedApiAndroidX")
     override fun onSurfaceChanged(render: SampleRender, width: Int, height: Int) {
         session.runtimes
             .filterIsInstance<PerceptionRuntime>()
@@ -296,7 +297,7 @@ class AnchorsPlanesHitTestActivity :
             for (anchor in anchors) {
                 // Get the current pose of an Anchor in world space. The Anchor pose is updated
                 // during calls to session.update() as ARCore refines its estimate of the world.
-                modelMatrix = Matrix4.fromPose(anchor.runtimeAnchor.pose)
+                modelMatrix = Matrix4.fromPose(anchor.state.value.pose)
 
                 // Calculate model/view/projection matrices
                 modelViewMatrix = viewMatrix * modelMatrix
@@ -313,8 +314,9 @@ class AnchorsPlanesHitTestActivity :
                 getHits(tap.x, tap.y)
             }
 
-            for (hit in foundHits.value) {
-                addAnchor(hit.hitPose)
+            val firstHit = foundHits.value.firstOrNull()
+            if (firstHit != null) {
+                addAnchor(firstHit.hitPose)
             }
             foundHits.value = emptyList() // So we don't keep duplicating anchors
 

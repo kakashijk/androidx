@@ -46,6 +46,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -54,6 +56,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
+import androidx.compose.ui.util.fastFirst
 import androidx.compose.ui.util.fastFirstOrNull
 import androidx.wear.compose.foundation.LocalReduceMotion
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
@@ -70,8 +73,10 @@ import androidx.wear.compose.material3.ScrollIndicatorDefaults
 import androidx.wear.compose.material3.TransformingLazyColumnStateAdapter
 import androidx.wear.compose.material3.VerticalPageIndicator
 import kotlin.math.max
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Contains the default values used by one-handed gestures */
 public object OneHandedGestureDefaults {
@@ -171,34 +176,56 @@ public object OneHandedGestureDefaults {
             AnimatedImageVector.animatedVectorResource(
                 R.drawable.wear_one_handed_gesture_indicator_animation
             )
-        val buttonContentAlpha = remember { Animatable(1f) }
+        val contentAlpha = remember { Animatable(1f) }
         val avdAnimationScale = remember { Animatable(0f) }
 
         val painter = rememberAnimatedVectorPainter(animatedImageVector = avd, atEnd = avdActive)
 
-        Box(contentAlignment = Alignment.Center) {
-            Box(modifier = Modifier.graphicsLayer { alpha = buttonContentAlpha.value }) {
-                content()
+        Layout(
+            content = {
+                Box(modifier = Modifier.layoutId("icon")) {
+                    Image(
+                        painter = painter,
+                        contentDescription = null,
+                        modifier =
+                            modifier.size(GestureIndicatorSize).graphicsLayer {
+                                scaleX = avdAnimationScale.value
+                                scaleY = avdAnimationScale.value
+                            },
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+                Box(
+                    modifier =
+                        Modifier.layoutId("content").graphicsLayer { alpha = contentAlpha.value }
+                ) {
+                    content()
+                }
             }
-            Image(
-                painter = painter,
-                contentDescription = null,
-                modifier =
-                    modifier.size(GestureIndicatorSize).graphicsLayer {
-                        scaleX = avdAnimationScale.value
-                        scaleY = avdAnimationScale.value
-                    },
-                contentScale = ContentScale.Fit,
-            )
+        ) { measurables, constraints ->
+            val iconMeasurable = measurables.fastFirst { it.layoutId == "icon" }
+            val contentMeasurable = measurables.fastFirst { it.layoutId == "content" }
+
+            val contentPlaceable = contentMeasurable.measure(constraints)
+            val iconPlaceable = iconMeasurable.measure(constraints)
+
+            val width = contentPlaceable.width
+            val height = contentPlaceable.height
+            layout(width, height) {
+                contentPlaceable.placeRelative(0, 0)
+
+                // Center the icon within the calculated layout width/height
+                val xOffset = (width - iconPlaceable.width) / 2
+                val yOffset = (height - iconPlaceable.height) / 2
+                iconPlaceable.placeRelative(xOffset, yOffset)
+            }
         }
 
         if (gestureIndicatorVisible) {
             LaunchedEffect(Unit) {
                 try {
                     // Animate indicator visibility in
-                    launch {
-                        buttonContentAlpha.animateTo(0f, EXPRESSIVE_DEFAULT_EFFECTS_SPRING_FLOAT)
-                    }
+                    launch { contentAlpha.animateTo(0f, EXPRESSIVE_DEFAULT_EFFECTS_SPRING_FLOAT) }
                     launch {
                         avdAnimationScale.animateTo(1f, EXPRESSIVE_DEFAULT_SPATIAL_SPRING_FLOAT)
                     }
@@ -214,16 +241,17 @@ public object OneHandedGestureDefaults {
                         avdAnimationScale.animateTo(0f, EXPRESSIVE_DEFAULT_EFFECTS_SPRING_FLOAT)
                     }
                     val finalButtonAnimationJob = launch {
-                        buttonContentAlpha.animateTo(1f, EXPRESSIVE_DEFAULT_SPATIAL_SPRING_FLOAT)
+                        contentAlpha.animateTo(1f, EXPRESSIVE_DEFAULT_SPATIAL_SPRING_FLOAT)
                     }
 
                     finalScaleAnimationJob.join()
                     finalButtonAnimationJob.join()
                 } finally {
-                    buttonContentAlpha.snapTo(1f)
-                    avdAnimationScale.snapTo(0f)
+                    withContext(NonCancellable) {
+                        contentAlpha.snapTo(1f)
+                        avdAnimationScale.snapTo(0f)
+                    }
                     avdActive = false
-
                     onGestureIndicatorFinished()
                 }
             }
@@ -431,9 +459,11 @@ public object OneHandedGestureDefaults {
                     finalScaleAnimationJob.join()
                     indicatorColorResetJob.join()
                 } finally {
-                    avdAnimationScale.snapTo(0f)
-                    indicatorColor.snapTo(indicatorDefaultColor)
-                    jiggleFractionAnimatable.snapTo(0f)
+                    withContext(NonCancellable) {
+                        avdAnimationScale.snapTo(0f)
+                        indicatorColor.snapTo(indicatorDefaultColor)
+                        jiggleFractionAnimatable.snapTo(0f)
+                    }
                     indicatorState.jiggleAmount = 0f
 
                     avdActive = false
@@ -659,7 +689,7 @@ public object OneHandedGestureDefaults {
 
                     finalScaleAnimationJob.join()
                 } finally {
-                    avdAnimationScale.snapTo(0f)
+                    withContext(NonCancellable) { avdAnimationScale.snapTo(0f) }
                     avdActive = false
 
                     onGestureIndicatorFinished()

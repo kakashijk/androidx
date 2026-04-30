@@ -30,26 +30,28 @@ public open class CounterTrack(
     internal val packetLock = Any()
 
     init {
-        synchronized(packetLock) {
-            val event = obtainTraceEvent()
-            if (event != null) {
-                event.setPreamble(
-                    TrackDescriptor(
-                        name = name,
-                        uuid = uuid,
-                        parentUuid = parent.uuid,
-                        type = TRACK_DESCRIPTOR_TYPE_COUNTER,
-                        pid = DEFAULT_INT,
-                        tid = DEFAULT_LONG,
+        if (context.isGloballyEnabled) {
+            synchronized(packetLock) {
+                val event = obtainTraceEvent()
+                if (event != null) {
+                    event.setPreamble(
+                        TrackDescriptor(
+                            name = name,
+                            uuid = uuid,
+                            parentUuid = parent.uuid,
+                            type = TRACK_DESCRIPTOR_TYPE_COUNTER,
+                            pid = DEFAULT_INT,
+                            tid = DEFAULT_LONG,
+                        )
                     )
-                )
-                dispatchTraceEvent(event, immediateDispatch = true)
+                    dispatchTraceEvent(event, immediateDispatch = true)
+                }
             }
         }
     }
 
     public override fun setValue(value: Long) {
-        if (context.isEnabled) {
+        if (context.isGloballyEnabled) {
             synchronized(packetLock) {
                 val event = obtainTraceEvent()
                 event?.setCounterLong(trackUuid = uuid, value = value)
@@ -59,7 +61,7 @@ public open class CounterTrack(
     }
 
     public override fun setValue(value: Double) {
-        if (context.isEnabled) {
+        if (context.isGloballyEnabled) {
             synchronized(packetLock) {
                 val event = obtainTraceEvent()
                 event?.setCounterDouble(trackUuid = uuid, value = value)

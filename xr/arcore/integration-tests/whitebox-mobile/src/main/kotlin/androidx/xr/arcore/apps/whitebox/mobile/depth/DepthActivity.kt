@@ -146,6 +146,7 @@ class DepthActivity :
         }
     }
 
+    @Suppress("RestrictedApiAndroidX")
     override fun onSurfaceChanged(render: SampleRender, width: Int, height: Int) {
         session.runtimes
             .filterIsInstance<PerceptionRuntime>()
@@ -166,7 +167,7 @@ class DepthActivity :
                 var floatBuffer: FloatBuffer? = null
                 var currentDepthData: Depth? = null
                 try {
-                    currentDepthData = Depth.mono(session)
+                    currentDepthData = runCatching { Depth.mono(session) }.getOrNull()
                     if (currentDepthData != null) {
                         floatBuffer =
                             if (selectedDepthMode == DepthMode.RAW)

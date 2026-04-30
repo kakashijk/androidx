@@ -130,6 +130,9 @@ public abstract class RemoteFloat internal constructor() : BaseRemoteState<Float
         return creationState.getOrPutFloatArray(cacheKey) { arrayProvider(creationState) }
     }
 
+    internal fun hasBeenWrittenToDoc(creationState: RemoteComposeCreationState) =
+        creationState.remoteVariableToId.contains(cacheKey)
+
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     override fun getFloatIdForCreationState(creationState: RemoteComposeCreationState): Float {
         constantValueOrNull?.let {
@@ -1616,7 +1619,6 @@ internal constructor(
  * @property hasConstantValue Indicates if this expression will always yield the same value.
  * @property arrayProvider A lambda that provides the [FloatArray] representing the expression.
  */
-@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 internal class UncachedRemoteFloatExpression(
     public override val constantValueOrNull: Float?,
     internal override val cacheKey: RemoteStateCacheKey,
@@ -1923,7 +1925,6 @@ public fun toString(array: FloatArray): String {
  * by [extras]. Inlining is preferred as long as the resulting array length is less than
  * [MAX_SAFE_FLOAT_ARRAY].
  */
-@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 internal fun combineToFloatArray(
     creationState: RemoteComposeCreationState,
     remoteFloats: Array<RemoteFloat>,
@@ -1933,9 +1934,17 @@ internal fun combineToFloatArray(
     val totalSizeReference = extras.size + remoteFloats.size
     val arrays =
         Array<FloatArray>(remoteFloats.size) { i ->
-            val array = remoteFloats[i].arrayForCreationState(creationState)
-            totalSizeInline += array.size
-            array
+            val remoteFloat = remoteFloats[i]
+            // If remoteFloat has already been written to the document then use a reference
+            // rather than inlining the expression. This results in smaller documents.
+            if (remoteFloat.hasBeenWrittenToDoc(creationState)) {
+                totalSizeInline += 1
+                floatArrayOf(remoteFloat.getFloatIdForCreationState(creationState))
+            } else {
+                val array = remoteFloat.arrayForCreationState(creationState)
+                totalSizeInline += array.size
+                array
+            }
         }
 
     val combinedArray: FloatArray

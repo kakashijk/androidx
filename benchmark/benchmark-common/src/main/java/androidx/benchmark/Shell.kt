@@ -80,7 +80,7 @@ object Shell {
     }
 
     fun connectUiAutomation() {
-        ShellImpl // force initialization
+        @Suppress("UNUSED_EXPRESSION") ShellImpl // force initialization
     }
 
     /**

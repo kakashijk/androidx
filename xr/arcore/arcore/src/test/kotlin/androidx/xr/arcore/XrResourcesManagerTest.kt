@@ -20,6 +20,7 @@ import androidx.activity.ComponentActivity
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.xr.arcore.runtime.Anchor as RuntimeAnchor
 import androidx.xr.arcore.runtime.ArDevice as RuntimeArDevice
+import androidx.xr.arcore.runtime.AugmentedImage as RuntimeAugmentedImage
 import androidx.xr.arcore.runtime.AugmentedObject as RuntimeAugmentedObject
 import androidx.xr.arcore.runtime.Depth as RuntimeDepth
 import androidx.xr.arcore.runtime.Face as RuntimeFace
@@ -100,6 +101,26 @@ class XrResourcesManagerTest {
         assertThat(underTest.leftHand!!.runtimeHand).isEqualTo(leftRuntimeHand)
         assertThat(underTest.rightHand).isNotNull()
         assertThat(underTest.rightHand!!.runtimeHand).isEqualTo(rightRuntimeHand)
+    }
+
+    @Test
+    fun initiateEyes_setsAvailableEyes() {
+        val leftRuntimeEye = StubRuntimeEye()
+        val rightRuntimeEye = StubRuntimeEye()
+        underTest.initiateEyes(leftRuntimeEye, rightRuntimeEye)
+
+        assertThat(underTest.leftEye).isNotNull()
+        assertThat(underTest.leftEye!!.runtimeEye).isEqualTo(leftRuntimeEye)
+        assertThat(underTest.rightEye).isNotNull()
+        assertThat(underTest.rightEye!!.runtimeEye).isEqualTo(rightRuntimeEye)
+    }
+
+    @Test
+    fun initiateEyes_setsWithNull() {
+        underTest.initiateEyes(leftRuntimeEye = null, rightRuntimeEye = null)
+
+        assertThat(underTest.leftEye).isNull()
+        assertThat(underTest.rightEye).isNull()
     }
 
     @Test
@@ -215,6 +236,19 @@ class XrResourcesManagerTest {
     }
 
     @Test
+    fun syncTrackables_handlesAugmentedImages() {
+        val runtimeAugmentedImage1 = StubRuntimeAugmentedImage()
+        val runtimeAugmentedImage2 = StubRuntimeAugmentedImage()
+        val runtimeAugmentedImage3 = StubRuntimeAugmentedImage()
+
+        underTest.syncTrackables(listOf(runtimeAugmentedImage1, runtimeAugmentedImage2))
+
+        assertThat(underTest.trackablesMap[runtimeAugmentedImage1]).isNotNull()
+        assertThat(underTest.trackablesMap[runtimeAugmentedImage2]).isNotNull()
+        assertThat(underTest.trackablesMap[runtimeAugmentedImage3]).isNull()
+    }
+
+    @Test
     fun clear_clearsAllTrackables() {
         val runtimePlane = StubRuntimePlane()
         underTest.syncTrackables(listOf(runtimePlane))
@@ -298,6 +332,12 @@ class XrResourcesManagerTest {
         override val handJointsBuffer: FloatBuffer = ByteBuffer.allocate(bufferSize).asFloatBuffer()
     }
 
+    private class StubRuntimeEye : androidx.xr.arcore.runtime.Eye {
+        override val isOpen = true
+        override val pose = Pose()
+        override val trackingState = TrackingState.TRACKING
+    }
+
     private class StubRuntimePlane : RuntimePlane {
         override val type = RuntimePlane.Type.VERTICAL
         override val label = RuntimePlane.Label.WALL
@@ -314,6 +354,13 @@ class XrResourcesManagerTest {
         override val category = AugmentedObjectCategory.UNKNOWN
         override val centerPose = Pose()
         override val extents = FloatSize3d()
+        override val trackingState = TrackingState.TRACKING
+    }
+
+    private class StubRuntimeAugmentedImage : RuntimeAugmentedImage {
+        override val index = 0
+        override val centerPose = Pose()
+        override val extents = FloatSize2d()
         override val trackingState = TrackingState.TRACKING
     }
 
